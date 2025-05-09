@@ -11,10 +11,13 @@ from methods.LS_SVM_help import predict_ls_help
 
 def apply_predictions(df, predictions, target_column, y_unlabeled, full=False):
     df['Предсказанный диагноз'] = df[target_column]
+    df['Источник'] = 'ручное'
     if full and len(predictions) == len(df):
         df['Предсказанный диагноз'] = predictions
+        df.loc[y_unlabeled.index, 'Источник'] = 'предсказание'
     elif len(predictions) == len(y_unlabeled):
         df.loc[y_unlabeled.index, 'Предсказанный диагноз'] = predictions
+        df.loc[y_unlabeled.index, 'Источник'] = 'предсказание'
     else:
         raise ValueError("Неправильная длина предсказаний")
     return df
@@ -91,9 +94,24 @@ if uploaded_file:
                     pca = PCA(n_components=2)
                     X_vis = pca.fit_transform(X_scaled)
                     plt.figure(figsize=(8, 6))
-                    scatter = plt.scatter(X_vis[:, 0], X_vis[:, 1], c=pd.Categorical(df['Предсказанный диагноз']).codes, cmap='viridis')
+                    is_labeled = df['Источник'] == 'ручное'
+                    is_predicted = df['Источник'] == 'предсказание'
+
+                    plt.scatter(
+                        X_vis[is_labeled, 0], X_vis[is_labeled, 1],
+                        c=pd.Categorical(df.loc[is_labeled, 'Предсказанный диагноз']).codes,
+                        cmap='viridis', marker='o', alpha=0.6, label='Лейблы'
+                    )
+                    plt.scatter(
+                        X_vis[is_predicted, 0], X_vis[is_predicted, 1],
+                        c=pd.Categorical(df.loc[is_predicted, 'Предсказанный диагноз']).codes,
+                        cmap='viridis', marker='x', alpha=0.9, label='Предсказания'
+                    )
+                    plt.xlabel("PCA 1")
+                    plt.ylabel("PCA 2")
                     plt.title("Карта предсказаний (PCA)")
-                    plt.colorbar(scatter, ticks=range(len(df['Предсказанный диагноз'].unique())), label='Диагноз')
+                    plt.colorbar(label='Диагноз')
+                    plt.legend()
                     st.pyplot(plt.gcf())
 
                 st.download_button("💾 Скачать результат с диагнозами", data=df.to_csv(index=False).encode('utf-8'), file_name= selected_method + " result.csv")
