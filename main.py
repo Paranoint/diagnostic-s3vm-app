@@ -7,7 +7,17 @@ from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 
 from methods.svc_self_training import predict_svc_self
-#from dummy_lapsvm import LapSVM  # Временно, пока нет настоящей реализации
+from methods.LS_SVM_help import predict_ls_help
+
+def apply_predictions(df, predictions, target_column, y_unlabeled, full=False):
+    df['Предсказанный диагноз'] = df[target_column]
+    if full and len(predictions) == len(df):
+        df['Предсказанный диагноз'] = predictions
+    elif len(predictions) == len(y_unlabeled):
+        df.loc[y_unlabeled.index, 'Предсказанный диагноз'] = predictions
+    else:
+        raise ValueError("Неправильная длина предсказаний")
+    return df
 
 st.set_page_config(page_title="SVM Медицинский помощник", layout="wide")
 st.title("🩺 Диагностический помощник на S3VM")
@@ -40,11 +50,16 @@ if uploaded_file:
 
     feature_columns = st.session_state.feature_columns
 
-    selected_method = st.selectbox("🤖 Выберите метод обучения", ["SVC + SelfTrainingClassifier"])
+    selected_method = st.selectbox("🤖 Выберите метод обучения",
+        ["SVC + SelfTrainingClassifier",
+        "LS-SVM + HelpTrainingClassifier",
+        ])
 
     method_functions = {
         "SVC + SelfTrainingClassifier": predict_svc_self,
+        "LS-SVM + HelpTrainingClassifier": predict_ls_help,
     }
+
     if st.button("🚀 Обучить модель"):
         if not feature_columns:
             st.error("❌ Пожалуйста, выберите хотя бы один признак для обучения.")
@@ -62,16 +77,16 @@ if uploaded_file:
             y_labeled = y[y_clean != -1]
 
             st.info(f"Обучение на {len(X_labeled)} размеченных и {len(X_unlabeled)} неразмеченных записях")
+            
             method_fn = method_functions.get(selected_method)
 
             if method_fn:
-                predictions = method_fn(X_scaled, y_clean)
-                df['Предсказанный диагноз'] = df[target_column]
-                df.loc[y_unlabeled.index, 'Предсказанный диагноз'] = pd.Series(predictions, index=df.index)[y_unlabeled.index]
+                predictions = method_fn(X_labeled, y_labeled, X_unlabeled)
+                df = apply_predictions(df, predictions, target_column, y_unlabeled, full=True)
 
                 st.success("Модель обучена! Вот предсказания:")
                 st.dataframe(df[[target_column, 'Предсказанный диагноз']])
-                
+
                 with st.expander("📉 Визуализация результатов (PCA)"):
                     pca = PCA(n_components=2)
                     X_vis = pca.fit_transform(X_scaled)
@@ -81,7 +96,7 @@ if uploaded_file:
                     plt.colorbar(scatter, ticks=range(len(df['Предсказанный диагноз'].unique())), label='Диагноз')
                     st.pyplot(plt.gcf())
 
-                st.download_button("💾 Скачать результат с диагнозами", data=df.to_csv(index=False).encode('utf-8'), file_name="s3vm_diagnosis_result.csv")
+                st.download_button("💾 Скачать результат с диагнозами", data=df.to_csv(index=False).encode('utf-8'), file_name= selected_method + " result.csv")
             else:
                 st.warning("Выбранный метод не реализован.")
         
