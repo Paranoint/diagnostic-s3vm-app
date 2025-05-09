@@ -6,8 +6,7 @@ from sklearn.metrics import classification_report
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 
-from sklearn.svm import SVC
-from sklearn.semi_supervised import SelfTrainingClassifier
+from methods.svc_self_training import predict_svc_self
 #from dummy_lapsvm import LapSVM  # Временно, пока нет настоящей реализации
 
 st.set_page_config(page_title="SVM Медицинский помощник", layout="wide")
@@ -40,45 +39,52 @@ if uploaded_file:
     )
 
     feature_columns = st.session_state.feature_columns
+
+    selected_method = st.selectbox("🤖 Выберите метод обучения", ["SVC + SelfTrainingClassifier"])
+
+    method_functions = {
+        "SVC + SelfTrainingClassifier": predict_svc_self,
+    }
     if st.button("🚀 Обучить модель"):
-        df[target_column] = df[target_column].replace(-1, np.nan)
-        X = df[feature_columns]
-        y = df[target_column]
+        if not feature_columns:
+            st.error("❌ Пожалуйста, выберите хотя бы один признак для обучения.")
+        else:
+            X = df[feature_columns]
+            y = df[target_column]
 
-        X_unlabeled = X[y.isnull()]
-        y_unlabeled = y[y.isnull()]
+            y_clean = y.fillna(-1).astype(int)
+            X_scaled = StandardScaler().fit_transform(X)
 
-        X_labeled = X[~y.isnull()]
-        y_labeled = y[~y.isnull()].astype(int)
+            X_unlabeled = X_scaled[y_clean == -1]
+            y_unlabeled = y[y_clean == -1]
 
-        st.info(f"Обучение на {len(X_labeled)} размеченных и {len(X_unlabeled)} неразмеченных записях")
+            X_labeled = X_scaled[y_clean != -1]
+            y_labeled = y[y_clean != -1]
 
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
+            st.info(f"Обучение на {len(X_labeled)} размеченных и {len(X_unlabeled)} неразмеченных записях")
+            method_fn = method_functions.get(selected_method)
 
-        y_semi = y.copy()
-        y_semi[y_semi.isnull()] = -1
-        y_semi = y_semi.astype(int)
+            if method_fn:
+                predictions = method_fn(X_scaled, y_clean)
+                df['Предсказанный диагноз'] = df[target_column]
+                df.loc[y_unlabeled.index, 'Предсказанный диагноз'] = pd.Series(predictions, index=df.index)[y_unlabeled.index]
 
-        base_model = SVC(kernel='rbf', C=1.0, gamma='scale', probability=True)
-        model = SelfTrainingClassifier(base_model, threshold=0.95)
+                st.success("Модель обучена! Вот предсказания:")
+                st.dataframe(df[[target_column, 'Предсказанный диагноз']])
+                
+                with st.expander("📉 Визуализация результатов (PCA)"):
+                    pca = PCA(n_components=2)
+                    X_vis = pca.fit_transform(X_scaled)
+                    plt.figure(figsize=(8, 6))
+                    scatter = plt.scatter(X_vis[:, 0], X_vis[:, 1], c=pd.Categorical(df['Предсказанный диагноз']).codes, cmap='viridis')
+                    plt.title("Карта предсказаний (PCA)")
+                    plt.colorbar(scatter, ticks=range(len(df['Предсказанный диагноз'].unique())), label='Диагноз')
+                    st.pyplot(plt.gcf())
 
-        model.fit(X_scaled, y_semi)
+                st.download_button("💾 Скачать результат с диагнозами", data=df.to_csv(index=False).encode('utf-8'), file_name="s3vm_diagnosis_result.csv")
+            else:
+                st.warning("Выбранный метод не реализован.")
+        
+        
 
-        predictions = model.predict(X_scaled)
-        df['Предсказанный диагноз'] = df[target_column]
-        df.loc[y_unlabeled.index, 'Предсказанный диагноз'] = pd.Series(predictions, index=df.index)[y_unlabeled.index]
-
-        st.success("Модель обучена! Вот предсказания:")
-        st.dataframe(df[[target_column, 'Предсказанный диагноз']])
-
-        with st.expander("📉 Визуализация результатов (PCA)"):
-            pca = PCA(n_components=2)
-            X_vis = pca.fit_transform(scaler.transform(X))
-            plt.figure(figsize=(8, 6))
-            scatter = plt.scatter(X_vis[:, 0], X_vis[:, 1], c=pd.Categorical(df['Предсказанный диагноз']).codes, cmap='viridis')
-            plt.title("Карта предсказаний (PCA)")
-            plt.colorbar(scatter, ticks=range(len(df['Предсказанный диагноз'].unique())), label='Диагноз')
-            st.pyplot(plt.gcf())
-
-        st.download_button("💾 Скачать результат с диагнозами", data=df.to_csv(index=False).encode('utf-8'), file_name="s3vm_diagnosis_result.csv")
+        
