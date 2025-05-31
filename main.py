@@ -32,6 +32,24 @@ st.markdown("""
 
 uploaded_file = st.file_uploader("📁 Загрузите ваш .csv файл", type=["csv"])
 
+MODEL_PARAM_WIDGETS = {
+    "LapSVM": lambda: {
+        "gamma": st.number_input("Gamma", value=0.5),
+        "lamA": st.number_input("λA (размеченные)", value=10.0),
+        "lamI": st.number_input("λI (неразмеченные)", value=10.0),
+        "k": st.number_input("k (соседи)", value=10, min_value=1, step=1)
+    },
+    "Gradient S3VM": lambda: {
+        "C": st.number_input("C (регуляризация)", value=1.0),
+        "C_star_final": st.number_input("C* (неразмеченные)", value=0.1),
+        "gamma": st.number_input("Gamma (ядро)", value=1.0)
+    },
+    "LS-SVM + Help-Training Classifier": lambda: {
+        "gamma": st.number_input("Gamma", value=30.0),
+        "sigma": st.number_input("Sigma", value=13.5)
+    }
+}
+
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
     st.subheader("📊 Данные")
@@ -66,6 +84,10 @@ if uploaded_file:
         "Laplacian SVM": predict_lapsvm,
     }
 
+    with st.expander("⚙ Параметры модели"):
+        get_params = MODEL_PARAM_WIDGETS.get(selected_method)
+        model_params = get_params() if get_params else {}
+
     if st.button("🚀 Обучить модель"):
         if not feature_columns:
             st.error("❌ Пожалуйста, выберите хотя бы один признак для обучения.")
@@ -87,7 +109,9 @@ if uploaded_file:
             method_fn = method_functions.get(selected_method)
 
             if method_fn:
-                predictions = method_fn(X_labeled, y_labeled, X_unlabeled)
+                predictions = method_fn(
+                    X_labeled, y_labeled, X_unlabeled, **model_params
+                )
                 df = apply_predictions(df, predictions, target_column, y_unlabeled, full=True)
 
                 st.success("Модель обучена! Вот предсказания:")
