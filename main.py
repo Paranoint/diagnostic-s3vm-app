@@ -6,7 +6,7 @@ from sklearn.metrics import classification_report
 from sklearn.decomposition import PCA
 import matplotlib.pyplot as plt
 
-from methods.svc_self_training import predict_svc_self
+from methods.svc_self_training import predict_tsvm_cccp
 from methods.LS_SVM_help import predict_ls_help
 
 def apply_predictions(df, predictions, target_column, y_unlabeled, full=False):
@@ -54,13 +54,13 @@ if uploaded_file:
     feature_columns = st.session_state.feature_columns
 
     selected_method = st.selectbox("🤖 Выберите метод обучения",
-        ["SVC + SelfTrainingClassifier",
-        "LS-SVM + HelpTrainingClassifier",
+        ["Gradient S3VM",
+        "LS-SVM + Help-Training Classifier",
         ])
 
     method_functions = {
-        "SVC + SelfTrainingClassifier": predict_svc_self,
-        "LS-SVM + HelpTrainingClassifier": predict_ls_help,
+        "Gradient S3VM": predict_tsvm_cccp,
+        "LS-SVM + Help-Training Classifier": predict_ls_help,
     }
 
     if st.button("🚀 Обучить модель"):
