@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 
 from methods.svc_self_training import predict_tsvm_cccp
 from methods.LS_SVM_help import predict_ls_help
+from methods.Laplacian_SVM import predict_lapsvm
 
 def apply_predictions(df, predictions, target_column, y_unlabeled, full=False):
     df['Предсказанный диагноз'] = df[target_column]
@@ -56,11 +57,13 @@ if uploaded_file:
     selected_method = st.selectbox("🤖 Выберите метод обучения",
         ["Gradient S3VM",
         "LS-SVM + Help-Training Classifier",
+        "Laplacian SVM",
         ])
 
     method_functions = {
         "Gradient S3VM": predict_tsvm_cccp,
         "LS-SVM + Help-Training Classifier": predict_ls_help,
+        "Laplacian SVM": predict_lapsvm,
     }
 
     if st.button("🚀 Обучить модель"):
